@@ -1,0 +1,20 @@
+{
+  "teams": [
+    "sdafdsfsdf",
+    "sdfdsf",
+    "ztuuz",
+    "67578"
+  ],
+  "max": 4,
+  "waitlist": [],
+  "results": {
+    "1": [
+      "1",
+      "2"
+    ],
+    "2": [
+      "2",
+      "1"
+    ]
+  }
+}

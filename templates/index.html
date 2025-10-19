@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bierpong Anmeldung 🍺</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body { background: #121212; color: #f0f0f0; font-family: "Segoe UI", sans-serif; padding-bottom: 3rem; }
+    .navbar { background: #1f1f1f; }
+    .navbar a { color: #fff !important; }
+    h1, h2, h3 { text-align: center; margin-top: 1rem; }
+    .container { max-width: 700px; margin-top: 2rem; background: #1a1a1a; padding: 2rem; border-radius: 12px; box-shadow: 0 0 20px rgba(255,255,255,0.1); }
+    .team-list li, .waitlist li { background: #292929; margin: 4px 0; padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .team-list a { color: #ff4b4b; text-decoration: none; font-weight: bold; }
+    .team-list a:hover { color: #ff7777; }
+    .btn-primary { background-color: #00b4ff; border: none; }
+    .btn-primary:hover { background-color: #0094d4; }
+    .footer { text-align: center; margin-top: 3rem; color: #aaa; font-size: 0.9rem; }
+  </style>
+</head>
+
+<body>
+<nav class="navbar navbar-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">🍺 Bierpong Turnier</a>
+    <div>
+      {% if admin %}
+        <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+      {% else %}
+        <a href="/login" class="btn btn-outline-light btn-sm">Admin Login</a>
+      {% endif %}
+      <a href="/bracket" class="btn btn-outline-light btn-sm ms-2">View Bracket</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <h2 class="mb-3">Team Anmeldung</h2>
+
+  <form method="post" class="d-flex mb-3">
+    <input type="text" name="team" class="form-control me-2" placeholder="Teamname" required>
+    <button class="btn btn-primary">Eintragen</button>
+  </form>
+
+  {% if full %}
+    <div class="alert alert-warning text-center">Das Turnier ist voll! Neue Teams kommen automatisch auf die Warteliste. 🍻</div>
+  {% endif %}
+
+  <h3 class="mt-4">Angemeldete Teams ({{ teams|length }} / {{ max }})</h3>
+  <ol class="team-list list-unstyled">
+    {% for t in teams %}
+      <li>
+        <span>{{ loop.index }}. {{ t }}</span>
+        {% if admin %}<a href="/remove/{{ loop.index0 }}">❌</a>{% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+
+  {% if waitlist %}
+    <h3 class="mt-4">Warteliste ({{ waitlist|length }})</h3>
+    <ol class="waitlist list-unstyled">
+      {% for w in waitlist %}
+        <li>{{ loop.index }}. {{ w }}</li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+
+  {% if admin %}
+    <hr class="my-4">
+    <h3>Admin Controls ⚙️</h3>
+    <form method="post" action="/set_limit" class="mb-3">
+      <label for="max" class="form-label">Max Teams:</label>
+      <div class="d-flex">
+        <input type="number" class="form-control me-2" name="max" id="max" value="{{ max }}" min="2">
+        <button class="btn btn-warning">Set</button>
+      </div>
+    </form>
+    <a href="/clear" class="btn btn-danger me-2">🗑 Alle Teams löschen</a>
+  {% endif %}
+</div>
+
+<div class="footer">
+  <p>Bierpong Turnier App – created with 🍻 & Flask</p>
+</div>
+
+</body>
+</html>
