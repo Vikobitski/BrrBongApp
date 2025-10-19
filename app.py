@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, redirect, session
 import os, json, random
+import os
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
-ADMIN_PASSWORD = "bierpongadmin"
+app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
+
 DATA = "data.json"
 
 # ---------- helpers ----------
