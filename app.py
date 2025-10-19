@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 
-DATA = DATA = os.path.join("data", "data.json")
+DATA = os.path.join("data", "data.json")
 
 # ---------- helpers ----------
 def load():
