@@ -264,9 +264,20 @@ def bracket():
 
     # If still empty, tournament not full
     if not rounds:
-        return render_template("bracket.html", not_ready=True, max=data["max"], teams=len(data["teams"]))
+        return render_template(
+            "bracket.html",
+            not_ready=True,
+            max=data["max"],
+            teams=len(data["teams"]),
+            data=data  # ✅ added
+        )
 
-    return render_template("bracket.html", rounds=rounds, not_ready=False, data=data)
+    return render_template(
+        "bracket.html",
+        rounds=rounds,
+        not_ready=False,
+        data=data  # ✅ consistent
+    )
 
 
 @app.route("/update_score", methods=["POST"])
