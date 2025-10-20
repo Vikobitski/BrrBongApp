@@ -37,7 +37,6 @@ def index():
     waitlist = data.get("waitlist", [])
     max_teams = data.get("max", 8)
 
-    # handle registration
     if request.method == "POST":
         team_name = request.form["team"].strip()
         player1 = request.form["player1"].strip()
@@ -45,12 +44,15 @@ def index():
 
         if team_name:
             new_team = {"team": team_name, "players": [player1, player2]}
+
             if len(teams) < max_teams:
+                # Add to active teams
                 teams.append(new_team)
             else:
+                # Add to waiting list
                 waitlist.append(new_team)
 
-            # reset bracket when team list changes
+            # Always reset bracket when teams change
             data["teams"] = teams
             data["waitlist"] = waitlist
             data["bracket"] = {"rounds": []}
@@ -59,21 +61,16 @@ def index():
             save(data)
             return redirect("/")
 
-    # recalc after possible removal or promotion
-    data = load()
-    teams = data.get("teams", [])
-    waitlist = data.get("waitlist", [])
-    full = len(teams) >= data.get("max", 8)
-
     return render_template(
         "index.html",
         teams=teams,
         waitlist=waitlist,
-        full=full,
         admin=session.get("admin"),
-        max=data["max"],
+        max=max_teams,
+        full=(len(teams) >= max_teams),
         mode=data.get("mode", "single")
     )
+
 
 
 @app.route("/login", methods=["GET", "POST"])

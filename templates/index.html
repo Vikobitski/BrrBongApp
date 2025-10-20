@@ -2,108 +2,144 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Bierpong Tournament</title>
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-    rel="stylesheet">
+  <title>Bierpong App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background: #fdfdfd; }
-    .container { max-width: 700px; margin-top: 40px; }
-    .team-card { background: #fff; border-radius: 12px; padding: 10px 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 8px; }
-    .footer { text-align: center; color: #888; margin-top: 40px; }
+    body {
+      background: #f9f9f9;
+      font-family: "Segoe UI", sans-serif;
+    }
+    .container {
+      max-width: 700px;
+      margin-top: 40px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      font-weight: 700;
+      margin-bottom: 25px;
+    }
+    .team-card {
+      padding: 10px 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      margin-bottom: 8px;
+    }
+    .team-card strong {
+      font-size: 1.05rem;
+    }
+    .footer {
+      text-align: center;
+      color: #888;
+      margin-top: 25px;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1 class="text-center mb-4">🏓 Bierpong Tournament</h1>
 
-    {% if full %}
-      <div class="alert alert-warning text-center">
-        Registration is closed — tournament is full!
-      </div>
-    {% else %}
-      <div class="alert alert-info text-center">
-        Currently {{ teams|length }} of {{ max }} slots filled.
-      </div>
-    {% endif %}
+<div class="container">
+  <h1>🍻 Bierpong Tournament</h1>
 
-    <!-- Team Registration Form -->
-    <form method="POST" class="mt-3">
-      <input class="form-control mb-2" name="team" placeholder="Team name" required {% if full %}disabled{% endif %}>
-      <input class="form-control mb-2" name="player1" placeholder="Player 1" required {% if full %}disabled{% endif %}>
-      <input class="form-control mb-2" name="player2" placeholder="Player 2" required {% if full %}disabled{% endif %}>
-      <button class="btn btn-success w-100" {% if full %}disabled{% endif %}>
-        {% if full %}Registration Full{% else %}Register Team{% endif %}
-      </button>
-    </form>
+  <!-- Registration Form -->
+  <form method="POST" class="mb-4">
+    <input class="form-control mb-2" name="team" placeholder="Team name" required>
+    <input class="form-control mb-2" name="player1" placeholder="Player 1" required>
+    <input class="form-control mb-3" name="player2" placeholder="Player 2" required>
+    <button class="btn btn-success w-100">
+      {% if teams|length >= max %}Join Waiting List{% else %}Register Team{% endif %}
+    </button>
+  </form>
 
-    <hr class="my-4">
+  {% if teams|length >= max %}
+    <div class="alert alert-warning text-center">
+      Registration is full! New teams will be added to the <strong>waiting list</strong>.
+    </div>
+  {% endif %}
 
-    <h4>Registered Teams ({{ teams|length }}/{{ max }})</h4>
-    {% if teams %}
-      {% for t in teams %}
-        <div class="team-card">
-          <strong>{{ loop.index }}. {{ t.team }}</strong><br>
-          <small>{{ t.players[0] }} &amp; {{ t.players[1] }}</small>
+  <hr>
+
+  <!-- Registered Teams -->
+  <h4>Registered Teams ({{ teams|length }}/{{ max }})</h4>
+  {% if teams %}
+    {% for t in teams %}
+      <div class="team-card">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{{ loop.index }}. {{ t.team }}</strong><br>
+            <small>{{ t.players[0] }} &amp; {{ t.players[1] }}</small>
+          </div>
           {% if admin %}
-            <a href="/remove/{{ loop.index0 }}" class="btn btn-sm btn-outline-danger float-end">Remove</a>
+            <a href="/remove/{{ loop.index0 }}" class="btn btn-sm btn-outline-danger">Remove</a>
           {% endif %}
         </div>
-      {% endfor %}
-    {% else %}
-      <p class="text-muted">No teams registered yet. Be the first!</p>
-    {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="text-muted">No teams registered yet.</p>
+  {% endif %}
 
-    {% if waitlist %}
+  {% if teams %}
+    <div class="text-center mt-3">
+      <a href="/bracket" class="btn btn-primary">
+        🏆 View Bracket
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- Waiting List -->
+  {% if waitlist %}
     <hr>
-    <h5>Waiting List</h5>
+    <h5>Waiting List ({{ waitlist|length }})</h5>
     {% for w in waitlist %}
-        <div class="team-card bg-light">
+      <div class="team-card bg-light">
         <strong>{{ w.team }}</strong><br>
         <small>{{ w.players[0] }} &amp; {{ w.players[1] }}</small>
-        </div>
+      </div>
     {% endfor %}
-    {% endif %}
+  {% endif %}
 
+  <!-- Admin Controls -->
+  {% if admin %}
+    <hr>
+    <h5>⚙️ Admin Controls</h5>
 
-    <div class="d-flex justify-content-between mt-4">
-      <a href="/bracket" class="btn btn-primary">🏆 View Bracket</a>
-      {% if admin %}
-        <a href="/logout" class="btn btn-outline-secondary">Logout</a>
-      {% else %}
-        <a href="/login" class="btn btn-outline-secondary">Admin Login</a>
-      {% endif %}
+    <form method="POST" action="/set_max" class="mt-2">
+      <label class="form-label">Max Teams:</label>
+      <div class="input-group mb-3">
+        <input type="number" name="max" class="form-control" min="2" max="64" value="{{ max }}" required>
+        <button class="btn btn-warning" type="submit">Set</button>
+      </div>
+    </form>
+
+    <form method="POST" action="/set_mode" class="mb-3">
+      <label class="form-label">Tournament Mode:</label>
+      <select name="mode" class="form-select">
+        <option value="single" {% if mode == 'single' %}selected{% endif %}>Single Elimination</option>
+        <option value="double" {% if mode == 'double' %}selected{% endif %}>Double Elimination</option>
+        <option value="group" {% if mode == 'group' %}selected{% endif %}>Group Stage</option>
+      </select>
+      <button class="btn btn-info mt-2 w-100" type="submit">Change Mode</button>
+    </form>
+
+    <form method="POST" action="/reset_bracket">
+      <button class="btn btn-danger w-100">♻️ Reset Tournament</button>
+    </form>
+
+    <div class="text-end mt-3">
+      <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
     </div>
+  {% endif %}
+</div>
 
-    {% if admin %}
-      <hr class="my-4">
-      <h4>Admin Controls ⚙️</h4>
+<div class="footer">
+  <p>Bierpong App — created with 🍺 Flask & ❤️</p>
+</div>
 
-      <!-- Max Teams -->
-      <form method="post" action="/set_limit" class="mb-3">
-        <label class="form-label">Max Teams:</label>
-        <div class="input-group">
-          <input type="number" class="form-control" name="max" value="{{ max }}" min="2">
-          <button class="btn btn-warning">Set</button>
-        </div>
-      </form>
-
-      <!-- Tournament Mode -->
-      <form method="post" action="/set_mode" class="mb-3">
-        <label class="form-label">Tournament Mode:</label>
-        <select name="mode" class="form-select">
-          <option value="single" {% if mode == 'single' %}selected{% endif %}>Single Elimination</option>
-          <option value="double" {% if mode == 'double' %}selected{% endif %}>Double Elimination</option>
-        </select>
-        <button class="btn btn-info mt-2">Change Mode</button>
-      </form>
-
-      <a href="/clear" class="btn btn-danger w-100">🗑 Clear All Teams</a>
-    {% endif %}
-
-    <div class="footer">
-      <p class="mt-4 mb-0">Bierpong App – created with 🍻 & Flask</p>
-    </div>
-  </div>
 </body>
 </html>
