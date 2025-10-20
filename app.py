@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, session
-import os, json, random
-import os
+import os, json, random, math
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
@@ -8,61 +7,74 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 
 DATA = os.path.join("data", "data.json")
 
-# ---------- helpers ----------
+# ---------- Helpers ----------
 def load():
     if not os.path.exists(DATA):
+        os.makedirs(os.path.dirname(DATA), exist_ok=True)
         with open(DATA, "w") as f:
-            json.dump({"teams": [], "waitlist": [], "max": 8, "results": {}}, f)
+            json.dump({
+                "teams": [],
+                "waitlist": [],
+                "max": 8,
+                "results": {},
+                "mode": "single",
+                "brackets": {}
+            }, f, indent=2)
     with open(DATA) as f:
         return json.load(f)
+
 
 def save(d):
     with open(DATA, "w") as f:
         json.dump(d, f, indent=2)
 
-# ---------- public ----------
+
+# ---------- Routes ----------
 @app.route("/", methods=["GET", "POST"])
 def index():
-    d = load()
-    teams = d["teams"]
-    waitlist = d.get("waitlist", [])
+    data = load()
+    teams = data.get("teams", [])
+    waitlist = data.get("waitlist", [])
+    max_teams = data.get("max", 8)
+
+    # handle registration
     if request.method == "POST":
-        name = request.form["team"].strip()
-        # enforce limit
-        if len(teams) < d["max"]:
-            teams.append(name)
-        else:
-            waitlist.append(name)
-        d["waitlist"] = waitlist
-        save(d)
-        return redirect("/")
-    full = len(teams) >= d["max"]
+        team_name = request.form["team"].strip()
+        player1 = request.form["player1"].strip()
+        player2 = request.form["player2"].strip()
+
+        if team_name:
+            new_team = {"team": team_name, "players": [player1, player2]}
+            if len(teams) < max_teams:
+                teams.append(new_team)
+            else:
+                waitlist.append(new_team)
+
+            # reset bracket when team list changes
+            data["teams"] = teams
+            data["waitlist"] = waitlist
+            data["bracket"] = {"rounds": []}
+            data.pop("winner", None)
+            data["team_signature"] = ",".join(sorted([t["team"] for t in teams]))
+            save(data)
+            return redirect("/")
+
+    # recalc after possible removal or promotion
+    data = load()
+    teams = data.get("teams", [])
+    waitlist = data.get("waitlist", [])
+    full = len(teams) >= data.get("max", 8)
+
     return render_template(
         "index.html",
         teams=teams,
         waitlist=waitlist,
         full=full,
         admin=session.get("admin"),
-        max=d["max"]
+        max=data["max"],
+        mode=data.get("mode", "single")
     )
 
-# ---------- admin-only actions ----------
-@app.route("/remove/<int:i>")
-def remove(i):
-    if not session.get("admin"):
-        return redirect("/")
-    d = load()
-    teams = d["teams"]
-    waitlist = d.get("waitlist", [])
-    if 0 <= i < len(teams):
-        teams.pop(i)
-        # promote next waiting team
-        if waitlist:
-            promoted = waitlist.pop(0)
-            teams.append(promoted)
-        d["teams"], d["waitlist"] = teams, waitlist
-        save(d)
-    return redirect("/")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -73,66 +85,175 @@ def login():
         return render_template("login.html", error="Wrong password!")
     return render_template("login.html")
 
+
 @app.route("/logout")
 def logout():
     session.pop("admin", None)
     return redirect("/")
+
+@app.route("/remove/<int:i>")
+def remove(i):
+    if not session.get("admin"):
+        return redirect("/")
+    data = load()
+    teams = data.get("teams", [])
+    waitlist = data.get("waitlist", [])
+
+    if 0 <= i < len(teams):
+        teams.pop(i)
+        # promote from waiting list
+        if waitlist:
+            promoted = waitlist.pop(0)
+            teams.append(promoted)
+
+    data["teams"] = teams
+    data["waitlist"] = waitlist
+    # reset bracket & winner when team list changes
+    data["bracket"] = {"rounds": []}
+    data.pop("winner", None)
+    data["team_signature"] = ",".join(sorted([t["team"] for t in teams]))
+    save(data)
+    return redirect("/")
+
 
 @app.route("/set_limit", methods=["POST"])
 def set_limit():
     if not session.get("admin"):
         return redirect("/")
     d = load()
-    new_limit = max(2, int(request.form["max"]))
-    d["max"] = new_limit
+    d["max"] = max(2, int(request.form["max"]))
     save(d)
     return redirect("/")
 
-@app.route("/clear")
-def clear():
+
+@app.route("/set_mode", methods=["POST"])
+def set_mode():
     if not session.get("admin"):
         return redirect("/")
-    save({"teams": [], "waitlist": [], "max": load()["max"], "results": {}})
+    d = load()
+    d["mode"] = request.form["mode"]
+    save(d)
     return redirect("/")
 
-# ---------- bracket ----------
+
+# ---------- Bracket ----------
 @app.route("/bracket", methods=["GET", "POST"])
 def bracket():
     data = load()
-    teams = data["teams"][: data["max"]]
-    results = data.get("results", {})
+    teams = data["teams"]
+    max_teams = data["max"]
+    mode = data.get("mode", "single")
+    bracket = data.get("bracket", {"rounds": []})
+    team_signature = ",".join(sorted([t["team"] for t in teams]))
 
-    # --- Handle one-match POST ---
+    # 🟡 Detect if bracket should be reset
+    if data.get("team_signature") != team_signature:
+        # Reset bracket and winner if teams changed
+        data["bracket"] = {"rounds": []}
+        data.pop("winner", None)
+        data["team_signature"] = team_signature
+        bracket = data["bracket"]
+        save(data)
+
+    # Require full registration before showing bracket
+    if len(teams) < max_teams:
+        return render_template(
+            "bracket.html",
+            not_ready=True,
+            mode=mode,
+            teams=teams,
+            max=max_teams,
+            rounds=[]
+        )
+
+
+    # 2️⃣ Initialize bracket once
+    if not bracket["rounds"]:
+        shuffled = teams.copy()
+        random.shuffle(shuffled)
+
+        first_round = []
+        for i in range(0, len(shuffled), 2):
+            t1 = shuffled[i]["team"]
+            t2 = shuffled[i + 1]["team"] if i + 1 < len(shuffled) else "BYE"
+            first_round.append({
+                "id": f"R1M{i//2+1}",
+                "team1": t1,
+                "team2": t2,
+                "score1": "",
+                "score2": ""
+            })
+
+        total_rounds = math.ceil(math.log2(max_teams))
+        rounds = [first_round]
+
+        # create empty next rounds
+        for r in range(1, total_rounds):
+            matches_in_round = max_teams // (2 ** (r + 1))
+            rounds.append([
+                {"id": f"R{r+1}M{m+1}", "team1": "", "team2": "", "score1": "", "score2": ""}
+                for m in range(matches_in_round)
+            ])
+
+        bracket["rounds"] = rounds
+        data["bracket"] = bracket
+        save(data)
+
+    # 3️⃣ Handle score updates and auto-advance
     if request.method == "POST":
         match_id = request.form["match_id"]
-        score1 = request.form["score1"]
-        score2 = request.form["score2"]
-        results[match_id] = [score1, score2]
-        data["results"] = results
+        score1 = request.form["score1"].strip()
+        score2 = request.form["score2"].strip()
+
+        # iterate over rounds
+        for rnd_index, rnd in enumerate(bracket["rounds"]):
+            for match_idx, match in enumerate(rnd):
+                if match["id"] == match_id:
+                    match["score1"] = score1
+                    match["score2"] = score2
+
+                    # only advance if both scores valid numbers
+                    if score1.isdigit() and score2.isdigit():
+                        s1, s2 = int(score1), int(score2)
+                        if s1 == s2:
+                            continue  # no tie handling for now
+
+                        winner = match["team1"] if s1 > s2 else match["team2"]
+
+                        # advance to next round if possible
+                        if rnd_index + 1 < len(bracket["rounds"]):
+                            next_round = bracket["rounds"][rnd_index + 1]
+                            next_slot = match_idx // 2
+
+                            # clear old data and assign winner properly
+                            if next_round[next_slot]["team1"] == "":
+                                next_round[next_slot]["team1"] = winner
+                            elif next_round[next_slot]["team2"] == "":
+                                next_round[next_slot]["team2"] = winner
+                            else:
+                                # overwrite slot completely (in case of resave)
+                                next_round[next_slot]["team1"] = winner
+                                next_round[next_slot]["team2"] = ""
+                        else:
+                            # final round → winner of tournament
+                            data["winner"] = winner
+
+                    break
+
+        data["bracket"] = bracket
         save(data)
         return redirect("/bracket")
 
-    # --- Build matches ---
-    if len(teams) < 2:
-        return render_template("bracket.html", matches=[], not_enough=True)
+    return render_template(
+        "bracket.html",
+        not_ready=False,
+        mode=mode,
+        rounds=bracket["rounds"],
+        teams=teams,
+        max=max_teams,
+        winner=data.get("winner")
+    )
 
-    if len(teams) % 2:
-        teams.append("BYE")
-
-    random.shuffle(teams)
-    matches = []
-    for i in range(0, len(teams), 2):
-        match_id = str(i // 2 + 1)
-        score = results.get(match_id, ["", ""])
-        matches.append({
-            "id": match_id,
-            "team1": teams[i],
-            "team2": teams[i + 1],
-            "score1": score[0],
-            "score2": score[1]
-        })
-
-    return render_template("bracket.html", matches=matches, not_enough=False)
 
 if __name__ == "__main__":
     app.run(debug=True)
