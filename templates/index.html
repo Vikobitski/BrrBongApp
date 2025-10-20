@@ -2,49 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Bierpong App</title>
+  <title>Bierpong Tournament</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body {
-      background: #f9f9f9;
-      font-family: "Segoe UI", sans-serif;
-    }
-    .container {
-      max-width: 700px;
-      margin-top: 40px;
-      background: #fff;
-      border-radius: 12px;
-      padding: 30px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    h1 {
-      text-align: center;
-      font-weight: 700;
-      margin-bottom: 25px;
-    }
-    .team-card {
-      padding: 10px 15px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      margin-bottom: 8px;
-    }
-    .team-card strong {
-      font-size: 1.05rem;
-    }
-    .footer {
-      text-align: center;
-      color: #888;
-      margin-top: 25px;
-      font-size: 0.9rem;
-    }
+    body { background:#f9f9f9; }
+    .container { max-width:700px; margin-top:40px; background:#fff; padding:25px; border-radius:12px;
+                 box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    .team-card { background:#f8f9fa; border-radius:8px; padding:10px 15px; border:1px solid #ddd; margin-bottom:8px; }
   </style>
 </head>
 <body>
-
 <div class="container">
-  <h1>🍻 Bierpong Tournament</h1>
+  <h1 class="text-center mb-4">🍺 Bierpong Tournament</h1>
+{% if not session.get('admin') %}
+  <div class="text-end mb-3">
+    <a href="/login" class="btn btn-outline-secondary btn-sm">🔐 Admin Login</a>
+  </div>
+{% endif %}
 
   <!-- Registration Form -->
   <form method="POST" class="mb-4">
@@ -57,9 +32,9 @@
   </form>
 
   {% if teams|length >= max %}
-    <div class="alert alert-warning text-center">
-      Registration is full! New teams will be added to the <strong>waiting list</strong>.
-    </div>
+  <div class="alert alert-warning text-center">
+    Registration is full! New teams will be added to the <strong>waiting list</strong>.
+  </div>
   {% endif %}
 
   <hr>
@@ -67,29 +42,23 @@
   <!-- Registered Teams -->
   <h4>Registered Teams ({{ teams|length }}/{{ max }})</h4>
   {% if teams %}
-    {% for t in teams %}
-      <div class="team-card">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <strong>{{ loop.index }}. {{ t.team }}</strong><br>
-            <small>{{ t.players[0] }} &amp; {{ t.players[1] }}</small>
-          </div>
-          {% if admin %}
-            <a href="/remove/{{ loop.index0 }}" class="btn btn-sm btn-outline-danger">Remove</a>
-          {% endif %}
-        </div>
-      </div>
-    {% endfor %}
+{% for t in teams %}
+  <div class="team-card d-flex justify-content-between align-items-center">
+    <div>
+      <strong>{{ loop.index }}. {{ t.team }}</strong><br>
+      <small>{{ t.players[0] }} &amp; {{ t.players[1] }}</small>
+    </div>
+
+    {% if session.get('admin') %}
+      <a href="/remove/{{ loop.index0 }}" class="btn btn-sm btn-outline-danger">
+        🗑 Remove
+      </a>
+    {% endif %}
+  </div>
+{% endfor %}
+
   {% else %}
     <p class="text-muted">No teams registered yet.</p>
-  {% endif %}
-
-  {% if teams %}
-    <div class="text-center mt-3">
-      <a href="/bracket" class="btn btn-primary">
-        🏆 View Bracket
-      </a>
-    </div>
   {% endif %}
 
   <!-- Waiting List -->
@@ -104,42 +73,40 @@
     {% endfor %}
   {% endif %}
 
-  <!-- Admin Controls -->
-  {% if admin %}
-    <hr>
-    <h5>⚙️ Admin Controls</h5>
+  {% if session.get('admin') %}
+  <hr>
+  <h6>⚙️ Admin Controls</h6>
 
-    <form method="POST" action="/set_max" class="mt-2">
-      <label class="form-label">Max Teams:</label>
-      <div class="input-group mb-3">
-        <input type="number" name="max" class="form-control" min="2" max="64" value="{{ max }}" required>
-        <button class="btn btn-warning" type="submit">Set</button>
-      </div>
-    </form>
-
-    <form method="POST" action="/set_mode" class="mb-3">
-      <label class="form-label">Tournament Mode:</label>
-      <select name="mode" class="form-select">
-        <option value="single" {% if mode == 'single' %}selected{% endif %}>Single Elimination</option>
-        <option value="double" {% if mode == 'double' %}selected{% endif %}>Double Elimination</option>
-        <option value="group" {% if mode == 'group' %}selected{% endif %}>Group Stage</option>
-      </select>
-      <button class="btn btn-info mt-2 w-100" type="submit">Change Mode</button>
-    </form>
-
-    <form method="POST" action="/reset_bracket">
-      <button class="btn btn-danger w-100">♻️ Reset Tournament</button>
-    </form>
-
-    <div class="text-end mt-3">
-      <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+  <form method="POST" action="/set_max" class="mt-2">
+    <label class="form-label">Max Teams:</label>
+    <div class="input-group mb-3">
+      <input type="number" name="max" class="form-control" min="2" max="64" value="{{ max }}" required>
+      <button class="btn btn-warning" type="submit">Set</button>
     </div>
-  {% endif %}
-</div>
+  </form>
 
-<div class="footer">
-  <p>Bierpong App — created with 🍺 Flask & ❤️</p>
-</div>
+  <form method="POST" action="/set_mode" class="mb-3">
+    <label class="form-label">Tournament Mode:</label>
+    <select name="mode" class="form-select">
+      <option value="single" {% if mode == 'single' %}selected{% endif %}>Single Elimination</option>
+      <option value="double" {% if mode == 'double' %}selected{% endif %}>Double Elimination</option>
+      <option value="group" {% if mode == 'group' %}selected{% endif %}>Group Stage</option>
+    </select>
+    <button class="btn btn-info mt-2 w-100" type="submit">Change Mode</button>
+  </form>
 
+  <form method="POST" action="/reset_bracket">
+    <button class="btn btn-danger w-100">♻️ Reset Tournament</button>
+  </form>
+
+  <div class="text-end mt-3">
+    <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+  </div>
+{% endif %}
+
+</div>
+<div class="text-center mt-3">
+  <a href="/bracket" class="btn btn-primary">🏆 View Tournament Bracket</a>
+</div>
 </body>
 </html>

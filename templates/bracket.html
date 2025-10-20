@@ -2,66 +2,155 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Turnierbaum</title>
+  <title>🏆 Bierpong Bracket</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <style>
-    body { background: #fdfdfd; }
-    .container { max-width: 1100px; margin-top: 40px; }
-    .footer { text-align: center; color: #888; margin-top: 40px; }
-    .bracket { display: flex; justify-content: space-between; overflow-x: auto; }
-    .round { display: flex; flex-direction: column; gap: 30px; align-items: center; min-width: 180px; }
-    .match { background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; width: 180px; }
-    .match strong { font-size: 0.9rem; }
-    .score-input { width: 45px; display: inline-block; margin: 3px; }
+    body {
+      background: #fafafa;
+    }
+    .container {
+      max-width: 800px;
+    }
+    .round-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 25px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .winner {
+      background: #d1e7dd !important;
+    }
+    .round-title {
+      background: #f1f1f1;
+      padding: 8px 15px;
+      border-radius: 8px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .table td {
+      vertical-align: middle;
+    }
+    .form-control-sm {
+      width: 60px;
+    }
+    @media (max-width: 768px) {
+      .form-control-sm {
+        width: 45px;
+        font-size: 13px;
+        padding: 2px;
+      }
+      .btn-sm {
+        padding: 3px 6px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <div class="container">
-    <h1 class="text-center mb-4">🏆 Turnierbaum ({{ mode|capitalize }})</h1>
+<div class="container mt-4">
+  <a href="/" class="btn btn-outline-secondary mb-3">⬅ Back</a>
 
-    {% if not_ready %}
-      <div class="alert alert-info text-center">
-        The tournament will start once all {{ max }} teams are registered.<br>
-        Currently {{ teams|length }}/{{ max }} teams joined.
-      </div>
-      <div class="text-center mt-4">
-        <a href="/" class="btn btn-secondary">⬅ Back</a>
-      </div>
-    {% else %}
-      {% if winner %}
-        <div class="alert alert-success text-center">
-          🏆 <strong>{{ winner }}</strong> wins the tournament!
-        </div>
-      {% endif %}
+  <!-- Winner banner -->
+  {% if data.winner %}
+    <div class="alert alert-success text-center fs-5 fw-bold">
+      🏆 {{ data.winner }} are the Bierpong Champions! 🍻
+    </div>
+  {% endif %}
 
-      <div class="bracket">
-        {% for round in rounds %}
-        <div class="round">
-          <h5>Round {{ loop.index }}</h5>
-          {% for m in round %}
-          <div class="match">
-            <form method="post">
-              <input type="hidden" name="match_id" value="{{ m.id }}">
-              <strong>{{ m.team1 or 'TBD' }}</strong><br>
-              <input type="number" class="form-control form-control-sm score-input" name="score1" value="{{ m.score1 }}" placeholder="0" min="0">
-              <input type="number" class="form-control form-control-sm score-input" name="score2" value="{{ m.score2 }}" placeholder="0" min="0"><br>
-              <strong>{{ m.team2 or 'TBD' }}</strong><br>
-              <button class="btn btn-sm btn-success mt-1">Save</button>
-            </form>
+  {% if not_ready %}
+    <div class="alert alert-info text-center">
+      Tournament will start once {{ max }} teams are registered.<br>
+      Currently {{ teams }} teams signed up.
+    </div>
+  {% else %}
+    <h2 class="text-center mb-4">🏆 Tournament Bracket</h2>
+
+    <div class="accordion" id="roundAccordion">
+      {% for matches in rounds %}
+        {% set round_idx = loop.index0 %}
+        {% set finished = matches|selectattr("winner")|list|length == matches|length %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading{{ loop.index }}">
+            <button class="accordion-button {% if finished %}collapsed{% endif %} {% if not finished and not data.winner %}bg-success text-white{% endif %}"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapse{{ loop.index }}"
+                    aria-expanded="{% if finished %}false{% else %}true{% endif %}"
+                    aria-controls="collapse{{ loop.index }}">
+              Round {{ loop.index }}
+              {% if finished %}
+                <span class="badge bg-secondary ms-2">Finished</span>
+              {% elif data.winner %}
+                <span class="badge bg-success ms-2">Final</span>
+              {% else %}
+                <span class="badge bg-light text-dark ms-2">In Progress</span>
+              {% endif %}
+            </button>
+          </h2>
+
+          <div id="collapse{{ loop.index }}" class="accordion-collapse collapse {% if not finished and not data.winner %}show{% endif %}"
+               aria-labelledby="heading{{ loop.index }}"
+               data-bs-parent="#roundAccordion">
+            <div class="accordion-body">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr class="table-light">
+                    <th>#</th><th>Team 1</th><th>Team 2</th><th>Score</th>
+                    {% if session.get('admin') %}
+                      <th>Reset</th>
+                    {% endif %}
+                  </tr>
+                </thead>
+                <tbody>
+                {% for m in matches %}
+                  <tr {% if m.winner == m.team1 or m.winner == m.team2 %}class="winner"{% endif %}>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ m.team1 }}</td>
+                    <td>{{ m.team2 }}</td>
+                    <td>
+                      <form method="POST" action="/update_score" class="d-flex align-items-center" style="gap:6px;">
+                        <input type="hidden" name="round" value="{{ round_idx }}">
+                        <input type="hidden" name="match" value="{{ loop.index0 }}">
+                        <input type="number" name="score1" class="form-control form-control-sm"
+                              placeholder="T1" min="0"
+                              {% if m.score1 is not none %}value="{{ m.score1 }}"{% endif %}
+                              oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+
+                        <input type="number" name="score2" class="form-control form-control-sm"
+                              placeholder="T2" min="0"
+                              {% if m.score2 is not none %}value="{{ m.score2 }}"{% endif %}
+                              oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+                        <button class="btn btn-sm btn-success">💾</button>
+                      </form>
+                    </td>
+                    {% if session.get('admin') %}
+                      <td>
+                        <form method="POST" action="/update_score" onsubmit="return confirm('Reset this match?')">
+                          <input type="hidden" name="round" value="{{ round_idx }}">
+                          <input type="hidden" name="match" value="{{ loop.index0 }}">
+                          <input type="hidden" name="score1" value="0">
+                          <input type="hidden" name="score2" value="0">
+                          <button class="btn btn-sm btn-outline-danger">↩</button>
+                        </form>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
-          {% endfor %}
         </div>
-        {% endfor %}
-      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
 
-      <div class="text-center mt-4">
-        <a href="/" class="btn btn-secondary">⬅ Back</a>
-      </div>
-    {% endif %}
-  </div>
-
-  <div class="footer">
-    <p class="mt-4 mb-0">Bierpong App – created with 🍻 & Flask</p>
-  </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
