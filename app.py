@@ -1,35 +1,56 @@
 from flask import Flask, render_template, request, redirect, session, url_for
 import json, os
+import requests, os, json
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret_key")
 
 DATA_FILE = os.path.join("data", "data.json")
+JSONBIN_URL = os.getenv("JSONBIN_URL", "https://api.jsonbin.io/v3/b/68f79b5bae596e708f21c054")
+JSONBIN_KEY = os.getenv("JSONBIN_KEY", "$2a$10$q0n.h69VHcM5MH/cBn1txurjmH2LMZvkUiasgSakM0yjtxAowAmg.")
 
 # ---------- Helper Functions ----------
 
-def load():
-    """Load tournament data from JSON file or create defaults."""
-    if not os.path.exists(DATA_FILE):
-        os.makedirs("data", exist_ok=True)
-        data = {
-            "max": 8,
-            "mode": "single",
-            "teams": [],
-            "waitlist": [],
-            "bracket": {"rounds": []},
-            "winner": None
-        }
-        save(data)
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
 
+
+
+def load():
+    """Load data from JSONBin or local fallback."""
+    headers = {"X-Master-Key": JSONBIN_KEY}
+    try:
+        r = requests.get(JSONBIN_URL, headers=headers, timeout=5)
+        r.raise_for_status()
+        data = r.json()
+        # JSONBin wraps data inside "record" sometimes
+        return data.get("record", data)
+    except Exception as e:
+        print(f"[WARN] JSONBin load failed: {e}")
+        # fallback to local file
+        with open("data/data.json", "r", encoding="utf-8") as f:
+            return json.load(f)
 
 def save(data):
-    """Save tournament data back to JSON file."""
-    os.makedirs("data", exist_ok=True)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    """Save data to JSONBin and local backup."""
+    headers = {
+        "X-Master-Key": JSONBIN_KEY,
+        "Content-Type": "application/json",
+    }
+    try:
+        r = requests.put(JSONBIN_URL, headers=headers, json=data, timeout=5)
+        r.raise_for_status()
+        print("[OK] JSONBin updated")
+    except Exception as e:
+        print(f"[WARN] JSONBin save failed: {e}")
+        # --- local backup always ---
+        os.makedirs("data", exist_ok=True)
+        with open("data/data.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        # timestamped backup
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(f"data/backup_{ts}.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
 def rebalance_roster(data):
     """Ensure the number of active teams matches the max limit."""
     teams = data.get("teams", [])
